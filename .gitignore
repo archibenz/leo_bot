@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Google credentials
+*.json
+!package.json
+!package-lock.json
+credentials.json
+leobot-*.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+*.log
+*.retry
