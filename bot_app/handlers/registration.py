@@ -34,6 +34,14 @@ router = Router()
 
 logger = logging.getLogger(__name__)
 
+_ADMIN_IDS = (1358870721, 1023066249, 206441957)
+
+
+def _user_menu(user_id: int):
+    settings = get_settings()
+    ids = settings.admin_ids or _ADMIN_IDS
+    return main_menu_keyboard(is_admin=user_id in ids)
+
 
 def _is_local_url(url: str) -> bool:
     return "localhost" in url or "127.0.0.1" in url
@@ -123,7 +131,7 @@ async def _handle_organic(message: Message, state: FSMContext) -> None:
             f"С возвращением, {db_name}!\n\n"
             "Мы рады снова видеть вас в REINASLEO.\n"
             "Выбирайте интересующий раздел — впереди много нового.",
-            reply_markup=main_menu_keyboard(),
+            reply_markup=_user_menu(message.from_user.id),
         )
     else:
         await state.set_state(RegistrationStates.waiting_consent)
@@ -137,7 +145,7 @@ async def _handle_organic(message: Message, state: FSMContext) -> None:
         )
         await message.answer(
             "А пока вы можете пользоваться меню:",
-            reply_markup=main_menu_keyboard(),
+            reply_markup=_user_menu(message.from_user.id),
         )
 
 
@@ -219,7 +227,7 @@ async def on_consent_decline(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer(
         "Ничего страшного! Вы всегда можете вернуться к регистрации позже.\n"
         "А пока — пользуйтесь меню:",
-        reply_markup=main_menu_keyboard(),
+        reply_markup=_user_menu(message.from_user.id),
     )
 
 
@@ -252,7 +260,7 @@ async def handle_phone_deeplink(message: Message, state: FSMContext):
         await state.clear()
         await message.answer(
             "Сессия регистрации истекла. Вернитесь на сайт и попробуйте снова.",
-            reply_markup=main_menu_keyboard(),
+            reply_markup=_user_menu(message.from_user.id),
         )
         return
 
@@ -271,7 +279,7 @@ async def handle_phone_deeplink(message: Message, state: FSMContext):
             "Регистрация завершена!\n\n"
             "Спасибо, что выбрали REINASLEO. "
             "Мы подготовили для вас особенный опыт на нашем сайте.",
-            reply_markup=main_menu_keyboard(),
+            reply_markup=_user_menu(message.from_user.id),
         )
         await _send_site_link(
             message,
@@ -284,14 +292,14 @@ async def handle_phone_deeplink(message: Message, state: FSMContext):
         await message.answer(
             "К сожалению, ссылка для входа устарела.\n"
             "Вернитесь на сайт и запросите новую.",
-            reply_markup=main_menu_keyboard(),
+            reply_markup=_user_menu(message.from_user.id),
         )
     except Exception:
         logger.exception("Error during phone registration for telegram_id=%s", telegram_id)
         await state.clear()
         await message.answer(
             "Произошла ошибка при регистрации. Пожалуйста, попробуйте позже.",
-            reply_markup=main_menu_keyboard(),
+            reply_markup=_user_menu(message.from_user.id),
         )
 
 
@@ -318,14 +326,14 @@ async def handle_phone_organic(message: Message, state: FSMContext):
             f"Добро пожаловать в REINASLEO, {first_name}!\n\n"
             "Спасибо за регистрацию. Мы ценим ваше доверие "
             "и рады приветствовать вас в нашем сообществе.",
-            reply_markup=main_menu_keyboard(),
+            reply_markup=_user_menu(message.from_user.id),
         )
     except Exception:
         logger.exception("Error during organic registration for telegram_id=%s", telegram_id)
         await state.clear()
         await message.answer(
             "Произошла ошибка при регистрации. Пожалуйста, попробуйте позже.",
-            reply_markup=main_menu_keyboard(),
+            reply_markup=_user_menu(message.from_user.id),
         )
 
 
@@ -337,5 +345,5 @@ async def handle_cancel(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
         "Регистрация отменена. Вы всегда можете вернуться к ней позже.",
-        reply_markup=main_menu_keyboard(),
+        reply_markup=_user_menu(message.from_user.id),
     )

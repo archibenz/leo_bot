@@ -25,7 +25,7 @@ def consent_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
-def main_menu_keyboard() -> ReplyKeyboardMarkup:
+def main_menu_keyboard(is_admin: bool = False) -> ReplyKeyboardMarkup:
     buttons = [
         "Магазин на WB 💜",
         "Наш VK 🧡",
@@ -34,6 +34,8 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
         "Подарок 🎁",
         "Техподдержка 🛠",
     ]
+    if is_admin:
+        buttons.append("🔐 Админ-панель")
 
     keyboard = []
     row: list[KeyboardButton] = []
