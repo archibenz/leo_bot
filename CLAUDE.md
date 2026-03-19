@@ -144,3 +144,7 @@ All implemented: FSM states (`waiting_consent`, `waiting_phone_organic`); API cl
 4. Bot messages should support Russian (primary audience)
 5. Always handle API errors gracefully — show user-friendly messages, don't expose technical details
 6. Use `config.py` Settings class for all configuration — never read env vars directly in handlers
+7. NEVER commit `.env` file — it contains BOT_TOKEN and secrets
+8. NEVER hardcode admin IDs, tokens, or secrets in source code — use `config.py` Settings only
+9. NEVER log secrets (BOT_TOKEN, BOT_API_SECRET) — even in debug mode
+10. ADMIN_IDS env var is REQUIRED — bot will not start without it
