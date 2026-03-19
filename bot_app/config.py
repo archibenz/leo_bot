@@ -56,6 +56,10 @@ def get_settings() -> Settings:
     if not bot_token:
         raise RuntimeError("BOT_TOKEN environment variable is required")
 
+    admin_ids = _parse_admin_ids(admin_ids_raw)
+    if not admin_ids:
+        raise RuntimeError("ADMIN_IDS environment variable is required (comma-separated Telegram user IDs)")
+
     try:
         validate_token(bot_token)
     except TokenValidationError as exc:
@@ -67,7 +71,7 @@ def get_settings() -> Settings:
         bot_token=bot_token,
         sheet_id=sheet_id,
         credentials_file=Path(credentials_path) if credentials_path else None,
-        admin_ids=_parse_admin_ids(admin_ids_raw),
+        admin_ids=admin_ids,
         gift_video_url=gift_video_url,
         api_base_url=api_base_url,
         bot_api_secret=bot_api_secret,

@@ -34,13 +34,9 @@ router = Router()
 
 logger = logging.getLogger(__name__)
 
-_ADMIN_IDS = (1358870721, 1023066249, 206441957)
-
-
 def _user_menu(user_id: int):
     settings = get_settings()
-    ids = settings.admin_ids or _ADMIN_IDS
-    return main_menu_keyboard(is_admin=user_id in ids)
+    return main_menu_keyboard(is_admin=user_id in settings.admin_ids)
 
 
 def _is_local_url(url: str) -> bool:
