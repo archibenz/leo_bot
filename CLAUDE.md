@@ -150,3 +150,4 @@ All implemented: FSM states (`waiting_consent`, `waiting_phone_organic`); API cl
 10. ADMIN_IDS env var is REQUIRED — bot will not start without it
 11. No verbose comments or docstrings — code should be self-documenting
 12. Never mention AI tools in comments, commits, or documentation
+13. When removing a feature — delete all related code, handlers, states, and keyboards completely
