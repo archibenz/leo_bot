@@ -17,6 +17,9 @@ venv/
 credentials.json
 leobot-*.json
 
+# IDE
+.claude/
+
 # OS
 .DS_Store
 Thumbs.db

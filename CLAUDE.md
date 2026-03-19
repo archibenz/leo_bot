@@ -148,3 +148,5 @@ All implemented: FSM states (`waiting_consent`, `waiting_phone_organic`); API cl
 8. NEVER hardcode admin IDs, tokens, or secrets in source code — use `config.py` Settings only
 9. NEVER log secrets (BOT_TOKEN, BOT_API_SECRET) — even in debug mode
 10. ADMIN_IDS env var is REQUIRED — bot will not start without it
+11. No verbose comments or docstrings — code should be self-documenting
+12. Never mention AI tools in comments, commits, or documentation
