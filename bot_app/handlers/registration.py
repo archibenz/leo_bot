@@ -223,7 +223,7 @@ async def on_consent_decline(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer(
         "Ничего страшного! Вы всегда можете вернуться к регистрации позже.\n"
         "А пока — пользуйтесь меню:",
-        reply_markup=_user_menu(message.from_user.id),
+        reply_markup=_user_menu(callback.from_user.id),
     )
 
 

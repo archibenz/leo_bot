@@ -26,6 +26,8 @@ async def bot_login(telegram_id: int, auth_token: str) -> str:
 
     async with aiohttp.ClientSession() as session:
         async with session.post(url, json=payload, headers=headers) as resp:
+            if resp.status == 400:
+                raise AuthTokenExpired("auth_token_not_found or invalid")
             if resp.status == 404:
                 raise UserNotFound(f"No user for telegram_id={telegram_id}")
             if resp.status == 410:
