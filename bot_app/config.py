@@ -47,14 +47,18 @@ def get_settings() -> Settings:
     credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
     admin_ids_raw = os.getenv("ADMIN_IDS")
     gift_video_url = os.getenv("GIFT_VIDEO_URL")
-    api_base_url = os.getenv("API_BASE_URL", "http://localhost:8080")
-    bot_api_secret = os.getenv("BOT_API_SECRET", "dev-bot-secret")
+    api_base_url = os.getenv("API_BASE_URL")
+    bot_api_secret = os.getenv("BOT_API_SECRET")
     bot_username = os.getenv("BOT_USERNAME", "reinasleo_bot")
     site_url = os.getenv("SITE_URL", "https://reinasleo.com")
     pages_url = os.getenv("PAGES_URL", "https://reinasleo.com/pages")
 
     if not bot_token:
         raise RuntimeError("BOT_TOKEN environment variable is required")
+    if not api_base_url:
+        raise RuntimeError("API_BASE_URL environment variable is required")
+    if not bot_api_secret:
+        raise RuntimeError("BOT_API_SECRET environment variable is required")
 
     admin_ids = _parse_admin_ids(admin_ids_raw)
     if not admin_ids:

@@ -42,8 +42,7 @@ _cleanup_tasks: dict[int, asyncio.Task] = {}
 
 def _admin_ids() -> tuple[int, ...]:
     settings = get_settings()
-    # Fallback to default IDs for backward compatibility
-    return settings.admin_ids or (1358870721, 1023066249, 206441957)
+    return settings.admin_ids
 
 
 @router.message(F.text == "Техподдержка 🛠")

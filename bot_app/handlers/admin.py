@@ -17,8 +17,6 @@ from bot_app.services import admin_api
 logger = logging.getLogger(__name__)
 router = Router()
 
-ADMIN_IDS = (1358870721, 1023066249, 206441957)
-
 CATEGORIES = {
     "dresses": "Платья",
     "outerwear": "Верхняя одежда",
@@ -35,8 +33,7 @@ SIZES = ["XS", "S", "M", "L", "XL"]
 
 def _is_admin(user_id: int) -> bool:
     settings = get_settings()
-    ids = settings.admin_ids or ADMIN_IDS
-    return user_id in ids
+    return user_id in settings.admin_ids
 
 
 # ── Admin Menu ──
