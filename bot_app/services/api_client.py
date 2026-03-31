@@ -84,6 +84,8 @@ async def bot_register(telegram_id: int, phone: str, first_name: str, auth_token
 
     async with aiohttp.ClientSession() as session:
         async with session.post(url, json=payload, headers=headers) as resp:
+            if resp.status == 400:
+                raise AuthTokenExpired("auth_token_not_found or invalid")
             if resp.status == 410:
                 raise AuthTokenExpired("auth_token expired")
             resp.raise_for_status()
