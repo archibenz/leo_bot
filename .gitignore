@@ -20,6 +20,9 @@ leobot-*.json
 # IDE
 .claude/
 
+# oh-my-claudecode local state
+.omc/
+
 # OS
 .DS_Store
 Thumbs.db
