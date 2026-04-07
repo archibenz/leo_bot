@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from functools import lru_cache
-from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -13,8 +12,6 @@ from aiogram.utils.token import TokenValidationError, validate_token
 @dataclass(slots=True)
 class Settings:
     bot_token: str
-    sheet_id: str | None
-    credentials_file: Path | None
     admin_ids: tuple[int, ...]
     gift_video_url: str | None
     api_base_url: str
@@ -43,8 +40,6 @@ def _parse_admin_ids(raw_value: str | None) -> tuple[int, ...]:
 def get_settings() -> Settings:
     load_dotenv()
     bot_token = os.getenv("BOT_TOKEN")
-    sheet_id = os.getenv("SHEET_ID")
-    credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
     admin_ids_raw = os.getenv("ADMIN_IDS")
     gift_video_url = os.getenv("GIFT_VIDEO_URL")
     api_base_url = os.getenv("API_BASE_URL")
@@ -73,8 +68,6 @@ def get_settings() -> Settings:
 
     return Settings(
         bot_token=bot_token,
-        sheet_id=sheet_id,
-        credentials_file=Path(credentials_path) if credentials_path else None,
         admin_ids=admin_ids,
         gift_video_url=gift_video_url,
         api_base_url=api_base_url,

@@ -12,7 +12,6 @@ Your domain is `leo_bot/` only. You MUST NOT edit files in `leo_web/`.
 - **aiogram 3.20+** — Telegram bot framework (async, FSM, filters)
 - **aiohttp 3.9+** — async HTTP client (for API calls)
 - **python-dotenv** — env vars
-- **gspread** + **oauth2client** — Google Sheets integration (optional)
 
 ## Commands
 
@@ -44,8 +43,7 @@ leo_bot/
 │   │   ├── menu.py            # Main menu navigation
 │   │   └── support.py         # Support & feedback
 │   ├── services/
-│   │   ├── api_client.py      # HTTP calls to Spring Boot API
-│   │   └── google_sheets.py   # Google Sheets (optional)
+│   │   └── api_client.py      # HTTP calls to Spring Boot API
 │   └── utils/
 │       └── validators.py      # Input validation
 ```
@@ -102,7 +100,6 @@ bot_register(telegram_id, phone, first_name, surname, auth_token) -> loginToken
 | Menu handler | `bot_app/handlers/menu.py` |
 | Support handler | `bot_app/handlers/support.py` |
 | API client | `bot_app/services/api_client.py` |
-| Google Sheets | `bot_app/services/google_sheets.py` |
 
 ## API Contract (consumed, not owned)
 
@@ -125,9 +122,9 @@ Backend API base URL: env `API_BASE_URL` (default: `http://localhost:8080`)
 BOT_TOKEN=<telegram bot token from @BotFather>
 API_BASE_URL=http://localhost:8080
 BOT_API_SECRET=<shared secret with API, must match API's BOT_API_SECRET>
-SITE_URL=http://localhost:3000
-SHEET_ID=<google sheet id, optional>
-CREDENTIALS_FILE=<path to google oauth json, optional>
+SITE_URL=https://reinasleo.com
+PAGES_URL=https://reinasleo.com/pages
+ADMIN_IDS=<comma-separated Telegram user IDs>
 ```
 
 ## Completed: Organic + Deep Link Registration Flow

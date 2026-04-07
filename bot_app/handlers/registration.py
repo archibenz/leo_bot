@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import datetime
 import logging
 
 from aiogram import F, Router
@@ -28,7 +27,6 @@ from bot_app.services.api_client import (
     check_user,
     log_visit,
 )
-from bot_app.services.google_sheets import GoogleSheetsClient
 from bot_app.states import RegistrationStates
 
 router = Router()
@@ -55,43 +53,6 @@ async def _send_site_link(message: Message, text_button: str, text_plain: str, u
                 [InlineKeyboardButton(text=button_text, url=url)]
             ]),
         )
-
-
-def _sheets_client() -> GoogleSheetsClient | None:
-    settings = get_settings()
-    if not settings.sheet_id or not settings.credentials_file:
-        return None
-    return GoogleSheetsClient(settings.sheet_id, settings.credentials_file)
-
-
-async def _record_visit(message: Message) -> None:
-    client = _sheets_client()
-    if not client:
-        return
-    username = message.from_user.username or message.from_user.first_name or "Неизвестно"
-    first_name = message.from_user.first_name or ""
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    try:
-        await client.record_visit_async(username, str(message.from_user.id), timestamp, first_name)
-    except Exception:  # noqa: BLE001
-        logger.exception("Failed to record visit in Google Sheets")
-
-
-async def _record_registration(message: Message, phone: str, flow: str) -> None:
-    client = _sheets_client()
-    if not client:
-        return
-    username = message.from_user.username or ""
-    first_name = message.from_user.first_name or ""
-    last_name = message.from_user.last_name or ""
-    telegram_id = str(message.from_user.id)
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    try:
-        await client.append_registration_async([
-            timestamp, first_name, last_name, username, telegram_id, phone, flow,
-        ])
-    except Exception:  # noqa: BLE001
-        logger.exception("Failed to record registration in Google Sheets")
 
 
 # ── /start command ──────────────────────────────────────────────────
@@ -133,7 +94,6 @@ async def _handle_organic(message: Message, state: FSMContext) -> None:
 
     if user_info.get("registered"):
         db_name = user_info.get("name") or name
-        await _record_visit(message)
         await message.answer(
             f"С возвращением, {db_name}!\n\n"
             "Мы рады снова видеть вас в REINASLEO.\n"
@@ -165,7 +125,6 @@ async def _handle_auth_deeplink(message: Message, state: FSMContext, auth_token:
 
     try:
         login_token = await bot_login(telegram_id, auth_token)
-        await _record_visit(message)
         site_url = f"{settings.site_url}/ru/auth/tg?token={login_token}"
         if _is_local_url(site_url):
             await message.answer(
@@ -281,7 +240,6 @@ async def handle_phone_deeplink(message: Message, state: FSMContext):
         )
         site_url = f"{settings.site_url}/ru/auth/tg?token={login_token}"
         await state.clear()
-        await _record_registration(message, phone, "deeplink")
         await message.answer(
             "Регистрация завершена!\n\n"
             "Спасибо, что выбрали REINASLEO. "
@@ -328,7 +286,6 @@ async def handle_phone_organic(message: Message, state: FSMContext):
             surname=last_name,
         )
         await state.clear()
-        await _record_registration(message, phone, "organic")
         await message.answer(
             f"Добро пожаловать в REINASLEO, {first_name}!\n\n"
             "Спасибо за регистрацию. Мы ценим ваше доверие "
