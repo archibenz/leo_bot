@@ -68,6 +68,31 @@ async def bot_organic_register(telegram_id: int, phone: str, first_name: str,
             resp.raise_for_status()
 
 
+async def log_visit(telegram_id: int, username: str | None = None,
+                    first_name: str | None = None, last_name: str | None = None,
+                    language_code: str | None = None, source: str = "organic") -> None:
+    """Call POST /api/bot/visit to log a bot visit. Errors are logged but never raised."""
+    settings = get_settings()
+    url = f"{settings.api_base_url}/api/bot/visit"
+    payload = {
+        "telegramId": telegram_id,
+        "username": username,
+        "firstName": first_name,
+        "lastName": last_name,
+        "languageCode": language_code,
+        "source": source,
+    }
+    headers = {"X-Bot-Secret": settings.bot_api_secret, "Content-Type": "application/json"}
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                if resp.status >= 400:
+                    logger.warning("log_visit failed: status=%s telegram_id=%s", resp.status, telegram_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("log_visit error for telegram_id=%s: %s", telegram_id, exc)
+
+
 async def bot_register(telegram_id: int, phone: str, first_name: str, auth_token: str,
                         surname: str | None = None) -> str:
     """Call POST /api/bot/register and return loginToken."""

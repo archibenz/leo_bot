@@ -26,6 +26,7 @@ from bot_app.services.api_client import (
     bot_organic_register,
     bot_register,
     check_user,
+    log_visit,
 )
 from bot_app.services.google_sheets import GoogleSheetsClient
 from bot_app.states import RegistrationStates
@@ -100,6 +101,16 @@ async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
 
     payload = message.text.split(maxsplit=1)[1] if len(message.text.split()) > 1 else ""
+    source = "deep_link" if payload.startswith("auth_") else "organic"
+
+    await log_visit(
+        telegram_id=message.from_user.id,
+        username=message.from_user.username,
+        first_name=message.from_user.first_name,
+        last_name=message.from_user.last_name,
+        language_code=message.from_user.language_code,
+        source=source,
+    )
 
     if payload.startswith("auth_"):
         await _handle_auth_deeplink(message, state, payload[5:])
