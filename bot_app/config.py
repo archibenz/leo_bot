@@ -19,6 +19,7 @@ class Settings:
     bot_username: str
     site_url: str
     pages_url: str
+    wb_seller_id: str
 
 
 def _parse_admin_ids(raw_value: str | None) -> tuple[int, ...]:
@@ -47,6 +48,7 @@ def get_settings() -> Settings:
     bot_username = os.getenv("BOT_USERNAME", "reinasleo_bot")
     site_url = os.getenv("SITE_URL", "https://reinasleo.com")
     pages_url = os.getenv("PAGES_URL", "https://reinasleo.com/pages")
+    wb_seller_id = os.getenv("WB_SELLER_ID", "609562")
 
     if not bot_token:
         raise RuntimeError("BOT_TOKEN environment variable is required")
@@ -75,4 +77,5 @@ def get_settings() -> Settings:
         bot_username=bot_username,
         site_url=site_url,
         pages_url=pages_url,
+        wb_seller_id=wb_seller_id,
     )

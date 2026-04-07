@@ -30,8 +30,8 @@ pip install -r requirements.txt
 ```
 leo_bot/
 ├── main.py                    # Entry point
-├── reinasleo_bot.py           # Alternative entry
-├── requirements.txt           # Dependencies
+├── requirements.txt           # Runtime dependencies
+├── requirements-dev.txt       # Test dependencies (pytest, etc.)
 ├── bot_app/
 │   ├── app.py                 # Bot & Dispatcher initialization
 │   ├── config.py              # Settings (env vars)

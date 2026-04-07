@@ -45,3 +45,14 @@ Telegram‑бот для брэнда REINASLEO на aiogram 3. Обрабаты
 - `SITE_URL` — URL сайта (по умолчанию `https://reinasleo.com`).
 - `PAGES_URL` — URL pages (по умолчанию `https://reinasleo.com/pages`).
 - `GIFT_VIDEO_URL` — URL приветственного видео.
+- `WB_SELLER_ID` — ID продавца на Wildberries (по умолчанию `609562`).
+
+## Тесты
+
+Для запуска тестов установите dev-зависимости:
+
+```bash
+source venv/bin/activate
+pip install -r requirements-dev.txt
+pytest
+```

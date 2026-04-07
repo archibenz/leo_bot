@@ -4,6 +4,7 @@ import random
 from aiogram import F, Router
 from aiogram.types import Message
 
+from bot_app.config import get_settings
 from bot_app.keyboards import register_prompt_keyboard
 from bot_app.services.api_client import check_user
 
@@ -31,10 +32,11 @@ async def _maybe_remind_registration(message: Message) -> None:
 
 @router.message(F.text == "Магазин на WB 💜")
 async def send_wb_link(message: Message):
+    wb_seller_id = get_settings().wb_seller_id
     await message.answer(
         "Обнови свой гардероб в нашем магазине! 💜\n\n"
         "Ознакомиться с нашими товарами на Wildberries вы можете по ссылке:\n"
-        "https://www.wildberries.ru/seller/609562"
+        f"https://www.wildberries.ru/seller/{wb_seller_id}"
     )
     await _maybe_remind_registration(message)
 
