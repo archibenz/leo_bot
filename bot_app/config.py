@@ -21,6 +21,7 @@ class Settings:
     pages_url: str
     wb_seller_id: str
     state_file_path: str
+    support_state_path: str
 
 
 def _parse_admin_ids(raw_value: str | None) -> tuple[int, ...]:
@@ -51,6 +52,7 @@ def get_settings() -> Settings:
     pages_url = os.getenv("PAGES_URL", "https://reinasleo.com/pages")
     wb_seller_id = os.getenv("WB_SELLER_ID", "609562")
     state_file_path = os.getenv("STATE_FILE_PATH", "state.json")
+    support_state_path = os.getenv("SUPPORT_STATE_PATH", "support_state.json")
 
     if not bot_token:
         raise RuntimeError("BOT_TOKEN environment variable is required")
@@ -81,4 +83,5 @@ def get_settings() -> Settings:
         pages_url=pages_url,
         wb_seller_id=wb_seller_id,
         state_file_path=state_file_path,
+        support_state_path=support_state_path,
     )

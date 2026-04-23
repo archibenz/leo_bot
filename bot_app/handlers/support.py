@@ -1,7 +1,9 @@
 import asyncio
 import logging
+import os
 import re
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Optional
 
 from aiogram import F, Router
@@ -12,6 +14,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 from bot_app.config import get_settings
 from bot_app.keyboards import admin_support_keyboard, main_menu_keyboard, user_support_keyboard
 from bot_app.states import SupportStates
+from bot_app.utils.support_state import load_state, save_state
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +45,11 @@ _cleanup_tasks: dict[int, asyncio.Task] = {}
 # Per-user locks guard read-modify-write sequences spanning await points
 _per_user_locks: dict[int, asyncio.Lock] = {}
 
+# Persistence across bot restarts (A32b, 2026-04-23)
+_STALE_THREAD_THRESHOLD = timedelta(minutes=30)
+_state_path: Optional[Path] = None
+_save_lock = asyncio.Lock()
+
 
 def _get_user_lock(user_id: int) -> asyncio.Lock:
     lock = _per_user_locks.get(user_id)
@@ -54,6 +62,68 @@ def _get_user_lock(user_id: int) -> asyncio.Lock:
 def _admin_ids() -> tuple[int, ...]:
     settings = get_settings()
     return settings.admin_ids
+
+
+def init_state_store(path: "str | os.PathLike[str]") -> None:
+    """Load persisted support state from disk. Call once before polling."""
+    global _state_path
+    _state_path = Path(path)
+    load_state(_state_path, threads=support_threads, admin_chats=active_admin_chats)
+
+
+async def persist_state() -> None:
+    """Atomic flush of support_threads + active_admin_chats to disk."""
+    if _state_path is None:
+        return
+    try:
+        await save_state(
+            _state_path,
+            threads=support_threads,
+            admin_chats=active_admin_chats,
+            save_lock=_save_lock,
+        )
+    except Exception:
+        logger.exception("Failed to persist support state")
+
+
+async def expire_stale_threads(bot, threshold: timedelta = _STALE_THREAD_THRESHOLD) -> int:
+    """Close threads whose last user message is older than threshold.
+
+    Called on startup after init_state_store. Best-effort apology message
+    gets sent so the user knows to re-ping support.
+    """
+    now = datetime.utcnow()
+    expired: list[int] = []
+    for user_id, thread in list(support_threads.items()):
+        last_msg = thread.get("last_user_message")
+        if isinstance(last_msg, datetime) and (now - last_msg) > threshold:
+            expired.append(user_id)
+
+    for user_id in expired:
+        support_threads.pop(user_id, None)
+        _cancel_cleanup(user_id)
+        try:
+            await bot.send_message(
+                user_id,
+                "Мы перезапускали бота. Пожалуйста, напиши вопрос ещё раз — "
+                "и мы продолжим поддержку.",
+                reply_markup=main_menu_keyboard(),
+            )
+        except Exception:
+            logger.exception("Failed to notify user %s about expired support thread", user_id)
+
+    expired_set = set(expired)
+    stale_admin_ids = [
+        admin_id
+        for admin_id, session in active_admin_chats.items()
+        if session.get("user_id") in expired_set
+    ]
+    for admin_id in stale_admin_ids:
+        active_admin_chats.pop(admin_id, None)
+
+    if expired:
+        await persist_state()
+    return len(expired)
 
 
 @router.message(F.text == "Техподдержка 🛠")
