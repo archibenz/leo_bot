@@ -39,6 +39,17 @@ support_threads: dict[int, dict[str, object]] = {}
 # Track scheduled cleanup tasks per user
 _cleanup_tasks: dict[int, asyncio.Task] = {}
 
+# Per-user locks guard read-modify-write sequences spanning await points
+_per_user_locks: dict[int, asyncio.Lock] = {}
+
+
+def _get_user_lock(user_id: int) -> asyncio.Lock:
+    lock = _per_user_locks.get(user_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _per_user_locks[user_id] = lock
+    return lock
+
 
 def _admin_ids() -> tuple[int, ...]:
     settings = get_settings()
@@ -71,10 +82,12 @@ async def process_additional_support(message: Message):
 @router.message(SupportStates.in_chat, F.text.in_({_user_end_chat_label(), "Выйти в меню"}))
 async def handle_user_exit(message: Message, state: FSMContext):
     user_id = message.from_user.id
-    thread = support_threads.get(user_id)
-    username = str(thread.get("username", "пользователь")) if thread else "пользователь"
 
-    _close_thread(user_id)
+    async with _get_user_lock(user_id):
+        thread = support_threads.pop(user_id, None)
+        _cancel_cleanup(user_id)
+
+    username = str(thread.get("username", "пользователь")) if thread else "пользователь"
 
     if thread:
         await _notify_admins_user_left(user_id, username, message.bot)
@@ -97,7 +110,7 @@ def _support_reply_keyboard(user_id: int) -> InlineKeyboardMarkup:
 def _get_or_create_thread(user_id: int, username: str) -> dict[str, object]:
     now = datetime.utcnow()
     thread = support_threads.get(user_id)
-    if not thread:
+    if thread is None:
         thread = {
             "user_id": user_id,
             "username": username,
@@ -106,10 +119,10 @@ def _get_or_create_thread(user_id: int, username: str) -> dict[str, object]:
             "prompt_sent": False,
             "user_ack_sent": False,
         }
-        support_threads[user_id] = thread
-    else:
-        thread["username"] = username
-        thread["last_user_message"] = now
+        # setdefault ensures atomicity if another coroutine just created it
+        thread = support_threads.setdefault(user_id, thread)
+    thread["username"] = username
+    thread["last_user_message"] = now
     return thread
 
 
@@ -118,52 +131,69 @@ async def _handle_user_support_message(message: Message, state: Optional[FSMCont
     user_id = message.from_user.id
     feedback = message.text or "<нет текста>"
 
-    thread = _get_or_create_thread(user_id, username)
+    async with _get_user_lock(user_id):
+        thread = _get_or_create_thread(user_id, username)
 
-    first_message = not thread.get("prompt_sent")
+        should_send_prompt = not thread.get("prompt_sent")
+        should_send_ack = not thread.get("user_ack_sent")
+        # Claim both flags before awaiting so a concurrent burst cannot duplicate work
+        if should_send_prompt:
+            thread["prompt_sent"] = True
+        if should_send_ack:
+            thread["user_ack_sent"] = True
 
-    if not thread.get("prompt_sent"):
-        admin_prompt = (
-            "Новое сообщение в техподдержке.\n\n"
-            f"ID: {user_id}\n"
-            f"Username: @{username}\n"
-            f"Текст: {feedback}\n\n"
-            "Нажми «Ответить пользователю», чтобы войти в чат."
-        )
+        if should_send_prompt:
+            admin_prompt = (
+                "Новое сообщение в техподдержке.\n\n"
+                f"ID: {user_id}\n"
+                f"Username: @{username}\n"
+                f"Текст: {feedback}\n\n"
+                "Нажми «Ответить пользователю», чтобы войти в чат."
+            )
 
-        for admin_id in _admin_ids():
+            prompt_messages: dict[int, int] = {}
+            any_sent = False
+            for admin_id in _admin_ids():
+                try:
+                    if message.content_type == "text":
+                        sent = await message.bot.send_message(
+                            chat_id=admin_id,
+                            text=admin_prompt,
+                            reply_markup=_support_reply_keyboard(user_id),
+                        )
+                    else:
+                        sent = await message.copy_to(
+                            admin_id,
+                            caption=admin_prompt,
+                            reply_markup=_support_reply_keyboard(user_id),
+                        )
+                    prompt_messages[admin_id] = sent.message_id
+                    any_sent = True
+                except Exception:  # noqa: BLE001
+                    logger.exception("Error sending support message to admin %s", admin_id)
+
+            if any_sent:
+                thread.setdefault("prompt_messages", {}).update(prompt_messages)
+            else:
+                # Rollback so a retry can ping admins again
+                thread["prompt_sent"] = False
+        else:
+            await _forward_user_message_to_admins(message, thread)
+
+        if should_send_ack:
             try:
-                if message.content_type == "text":
-                    sent = await message.bot.send_message(
-                        chat_id=admin_id,
-                        text=admin_prompt,
-                        reply_markup=_support_reply_keyboard(user_id),
-                    )
-                else:
-                    sent = await message.copy_to(
-                        admin_id,
-                        caption=admin_prompt,
-                        reply_markup=_support_reply_keyboard(user_id),
-                    )
-                thread.setdefault("prompt_messages", {})[admin_id] = sent.message_id
-            except Exception:  # noqa: BLE001
-                logger.exception("Error sending support message to admin %s", admin_id)
-        thread["prompt_sent"] = True
+                await message.answer(
+                    "Мы получили ваш запрос. Команда на связи и ответит здесь в чате.",
+                    reply_markup=user_support_keyboard(),
+                )
+            except Exception:
+                thread["user_ack_sent"] = False
+                raise
 
-    if not first_message:
-        await _forward_user_message_to_admins(message, thread)
+        if state:
+            await state.set_state(SupportStates.in_chat)
 
-    if not thread.get("user_ack_sent"):
-        await message.answer(
-            "Мы получили ваш запрос. Команда на связи и ответит здесь в чате.",
-            reply_markup=user_support_keyboard(),
-        )
-        thread["user_ack_sent"] = True
-
-    if state:
-        await state.set_state(SupportStates.in_chat)
-
-    _schedule_cleanup(user_id)
+        _schedule_cleanup(user_id)
 
 
 def _parse_username(text: str) -> Optional[str]:
@@ -210,6 +240,9 @@ async def _notify_admins_user_left(user_id: int, username: str, bot):
     notified_admins: set[int] = set()
     for admin_id, session in list(active_admin_chats.items()):
         if session.get("user_id") == user_id:
+            # Pop before awaiting so a concurrent admin handler cannot reuse the stale session
+            active_admin_chats.pop(admin_id, None)
+            notified_admins.add(admin_id)
             try:
                 await bot.send_message(
                     admin_id,
@@ -218,10 +251,7 @@ async def _notify_admins_user_left(user_id: int, username: str, bot):
                 )
             except Exception:  # noqa: BLE001
                 logger.exception("Error notifying admin %s about user exit", admin_id)
-            active_admin_chats.pop(admin_id, None)
-            notified_admins.add(admin_id)
 
-    # Inform other admins who were not in the active chat as well
     for admin_id in _admin_ids():
         if admin_id in notified_admins:
             continue
@@ -236,10 +266,9 @@ async def _notify_admins_user_left(user_id: int, username: str, bot):
 
 
 def _schedule_cleanup(user_id: int):
-    existing = _cleanup_tasks.get(user_id)
-    if existing and not existing.done():
-        existing.cancel()
-
+    prev = _cleanup_tasks.pop(user_id, None)
+    if prev is not None and not prev.done():
+        prev.cancel()
     _cleanup_tasks[user_id] = asyncio.create_task(_cleanup_thread_after(user_id))
 
 
@@ -255,33 +284,37 @@ async def _cleanup_thread_after(user_id: int):
     except asyncio.CancelledError:
         return
 
-    thread = support_threads.get(user_id)
-    if not thread:
+    async with _get_user_lock(user_id):
+        thread = support_threads.get(user_id)
+        if not thread:
+            _cleanup_tasks.pop(user_id, None)
+            _per_user_locks.pop(user_id, None)
+            return
+
+        if not thread.get("last_admin_reply"):
+            _cleanup_tasks.pop(user_id, None)
+            return
+
+        if any(session.get("user_id") == user_id for session in active_admin_chats.values()):
+            _cleanup_tasks.pop(user_id, None)
+            _schedule_cleanup(user_id)
+            return
+
+        last_activity = max(
+            thread.get("last_user_message") or datetime.min,
+            thread.get("last_admin_reply") or datetime.min,
+        )
+        if datetime.utcnow() - last_activity >= _CHAT_IDLE_TIMEOUT:
+            support_threads.pop(user_id, None)
+            _per_user_locks.pop(user_id, None)
+
         _cleanup_tasks.pop(user_id, None)
-        return
-
-    # Do not close if admin never replied
-    if not thread.get("last_admin_reply"):
-        _cleanup_tasks.pop(user_id, None)
-        return
-
-    if any(session.get("user_id") == user_id for session in active_admin_chats.values()):
-        _schedule_cleanup(user_id)
-        return
-
-    last_activity = max(
-        thread.get("last_user_message") or datetime.min,
-        thread.get("last_admin_reply") or datetime.min,
-    )
-    if datetime.utcnow() - last_activity >= _CHAT_IDLE_TIMEOUT:
-        support_threads.pop(user_id, None)
-
-    _cleanup_tasks.pop(user_id, None)
 
 
 def _close_thread(user_id: int):
     support_threads.pop(user_id, None)
     _cancel_cleanup(user_id)
+    _per_user_locks.pop(user_id, None)
 
 
 @router.callback_query(F.data.startswith("support_reply:"))
@@ -297,17 +330,24 @@ async def handle_support_reply(callback: CallbackQuery):
         await callback.answer()
         return
 
-    thread = support_threads.get(user_id)
-    if not thread:
-        await callback.answer("Чат уже закрыт")
-        return
+    async with _get_user_lock(user_id):
+        thread = support_threads.get(user_id)
+        if not thread:
+            await callback.answer("Чат уже закрыт")
+            return
 
-    username = str(thread.get("username", "пользователем"))
-    active_admin_chats[admin_id] = {"user_id": user_id, "username": username}
-    await callback.message.answer(
-        f"Вы в чате с @{username}. Можете писать сообщения пользователю.",
-        reply_markup=admin_support_keyboard(username),
-    )
+        username = str(thread.get("username", "пользователем"))
+        # Claim the admin slot before awaiting so a parallel callback cannot hijack it
+        active_admin_chats[admin_id] = {"user_id": user_id, "username": username}
+
+    try:
+        await callback.message.answer(
+            f"Вы в чате с @{username}. Можете писать сообщения пользователю.",
+            reply_markup=admin_support_keyboard(username),
+        )
+    except Exception:
+        active_admin_chats.pop(admin_id, None)
+        raise
     await callback.answer()
 
 
@@ -316,7 +356,6 @@ async def handle_admin_support_chat(message: Message):
     admin_id = message.from_user.id
     session = active_admin_chats.get(admin_id)
 
-    # Allow exiting the active session
     if session and message.text:
         if message.text == _end_chat_label(str(session.get("username", ""))):
             active_admin_chats.pop(admin_id, None)
@@ -331,12 +370,14 @@ async def handle_admin_support_chat(message: Message):
             await message.answer("Возвращаемся в меню.", reply_markup=main_menu_keyboard())
             return
 
-    # Allow replying via manual response to the initial prompt
     if not session and message.reply_to_message:
-        user_id, username = _parse_user_from_message(message.reply_to_message)
-        if user_id:
-            session = {"user_id": user_id, "username": username or "пользователь"}
-            active_admin_chats[admin_id] = session
+        user_id_from_reply, username_from_reply = _parse_user_from_message(message.reply_to_message)
+        if user_id_from_reply:
+            # setdefault avoids clobbering if another handler already claimed the slot
+            session = active_admin_chats.setdefault(
+                admin_id,
+                {"user_id": user_id_from_reply, "username": username_from_reply or "пользователь"},
+            )
 
     if not session:
         return
@@ -344,17 +385,18 @@ async def handle_admin_support_chat(message: Message):
     user_id = int(session.get("user_id", 0))
     username = session.get("username", "пользователю") or "пользователю"
 
-    thread = support_threads.get(user_id)
-    if not thread:
-        await message.answer(
-            "Чат закрыт. Откройте новый диалог через кнопку «Ответить пользователю».",
-            reply_markup=main_menu_keyboard(),
-        )
-        active_admin_chats.pop(admin_id, None)
-        return
+    async with _get_user_lock(user_id):
+        thread = support_threads.get(user_id)
+        if not thread:
+            active_admin_chats.pop(admin_id, None)
+            await message.answer(
+                "Чат закрыт. Откройте новый диалог через кнопку «Ответить пользователю».",
+                reply_markup=main_menu_keyboard(),
+            )
+            return
 
-    thread["last_admin_reply"] = datetime.utcnow()
-    _schedule_cleanup(user_id)
+        thread["last_admin_reply"] = datetime.utcnow()
+        _schedule_cleanup(user_id)
 
     try:
         if message.content_type == "text":
