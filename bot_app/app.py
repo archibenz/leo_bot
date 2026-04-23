@@ -4,6 +4,7 @@ import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher
+from aiogram.exceptions import TelegramNetworkError
 
 from bot_app.config import get_settings
 from bot_app.handlers import register_handlers
@@ -37,18 +38,24 @@ async def run() -> None:
     init_state_store(settings.support_state_path)
 
     pages_url = settings.pages_url
-    await bot.set_my_description(
-        "Команда REINASLEO рада приветствовать тебя ❤️\n\n"
-        "Спасибо за покупку — надеемся, что наши образы вдохновят тебя! 🫶🏻\n"
-        "Смотри подарок с онлайн‑тренировкой прямо в боте и подписывайся на нас в соцсетях.\n\n"
-        "Нажимая «Старт», вы соглашаетесь:\n"
-        f"- Политика конфиденциальности: {pages_url}/privacy.html\n"
-        f"- Пользовательское соглашение: {pages_url}/terms.html\n"
-        f"- Рекламная оферта: {pages_url}/advertising.html"
-    )
+    try:
+        await bot.set_my_description(
+            "Команда REINASLEO рада приветствовать тебя ❤️\n\n"
+            "Спасибо за покупку — надеемся, что наши образы вдохновят тебя! 🫶🏻\n"
+            "Смотри подарок с онлайн‑тренировкой прямо в боте и подписывайся на нас в соцсетях.\n\n"
+            "Нажимая «Старт», вы соглашаетесь:\n"
+            f"- Политика конфиденциальности: {pages_url}/privacy.html\n"
+            f"- Пользовательское соглашение: {pages_url}/terms.html\n"
+            f"- Рекламная оферта: {pages_url}/advertising.html"
+        )
+    except TelegramNetworkError:
+        logger.exception("set_my_description timed out, continuing startup")
 
     logger.info("Starting bot...")
-    await bot.delete_webhook(drop_pending_updates=True)
+    try:
+        await bot.delete_webhook(drop_pending_updates=True)
+    except TelegramNetworkError:
+        logger.exception("delete_webhook timed out, continuing to polling")
 
     try:
         expired = await expire_stale_threads(bot)
