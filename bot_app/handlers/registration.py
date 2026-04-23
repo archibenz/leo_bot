@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from urllib.parse import urlparse
 
 from aiogram import F, Router
 from aiogram.filters import CommandStart
@@ -48,8 +49,15 @@ def _user_menu(user_id: int):
     return main_menu_keyboard(is_admin=user_id in settings.admin_ids)
 
 
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "::1"}
+
+
 def _is_local_url(url: str) -> bool:
-    return "localhost" in url or "127.0.0.1" in url
+    try:
+        host = urlparse(url).hostname or ""
+    except ValueError:
+        return False
+    return host in _LOCAL_HOSTS
 
 
 async def _send_site_link(message: Message, text_button: str, text_plain: str, url: str, button_text: str = "Перейти на сайт REINASLEO") -> None:
