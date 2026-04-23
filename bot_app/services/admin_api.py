@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 import aiohttp
@@ -9,13 +10,21 @@ from bot_app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
+_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{1,128}$")
+
+
+def _validate_id(value: str, field_name: str) -> str:
+    if not isinstance(value, str) or not _ID_PATTERN.match(value):
+        raise ValueError(f"invalid {field_name}: expected [a-zA-Z0-9_-]{{1,128}}, got {value!r}")
+    return value
+
 
 async def _get(path: str) -> Any:
     settings = get_settings()
     url = f"{settings.api_base_url}{path}"
     headers = {"X-Bot-Secret": settings.bot_api_secret}
     async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=headers) as resp:
+        async with session.get(url, headers=headers, allow_redirects=False) as resp:
             resp.raise_for_status()
             return await resp.json()
 
@@ -25,7 +34,7 @@ async def _post(path: str, json: dict | None = None) -> Any:
     url = f"{settings.api_base_url}{path}"
     headers = {"X-Bot-Secret": settings.bot_api_secret, "Content-Type": "application/json"}
     async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=json or {}, headers=headers) as resp:
+        async with session.post(url, json=json or {}, headers=headers, allow_redirects=False) as resp:
             resp.raise_for_status()
             if resp.content_length and resp.content_length > 0:
                 return await resp.json()
@@ -37,7 +46,7 @@ async def _patch(path: str, json: dict) -> Any:
     url = f"{settings.api_base_url}{path}"
     headers = {"X-Bot-Secret": settings.bot_api_secret, "Content-Type": "application/json"}
     async with aiohttp.ClientSession() as session:
-        async with session.patch(url, json=json, headers=headers) as resp:
+        async with session.patch(url, json=json, headers=headers, allow_redirects=False) as resp:
             resp.raise_for_status()
             return await resp.json()
 
@@ -47,7 +56,7 @@ async def _delete(path: str) -> None:
     url = f"{settings.api_base_url}{path}"
     headers = {"X-Bot-Secret": settings.bot_api_secret}
     async with aiohttp.ClientSession() as session:
-        async with session.delete(url, headers=headers) as resp:
+        async with session.delete(url, headers=headers, allow_redirects=False) as resp:
             resp.raise_for_status()
 
 
@@ -60,6 +69,7 @@ async def get_products() -> list[dict]:
 
 
 async def update_stock(product_id: str, quantity: int) -> dict:
+    product_id = _validate_id(product_id, "product_id")
     return await _patch(f"/api/bot/admin/products/{product_id}/stock", {"quantity": quantity})
 
 
@@ -68,6 +78,7 @@ async def get_alerts() -> list[dict]:
 
 
 async def acknowledge_alert(alert_id: str) -> None:
+    alert_id = _validate_id(alert_id, "alert_id")
     await _post(f"/api/bot/admin/alerts/{alert_id}/acknowledge")
 
 
@@ -80,6 +91,7 @@ async def create_product(data: dict) -> dict:
 
 
 async def delete_product(product_id: str) -> None:
+    product_id = _validate_id(product_id, "product_id")
     await _delete(f"/api/bot/admin/products/{product_id}?permanent=false")
 
 
