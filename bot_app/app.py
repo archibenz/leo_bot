@@ -4,10 +4,10 @@ import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher
-from aiogram.fsm.storage.memory import MemoryStorage
 
 from bot_app.config import get_settings
 from bot_app.handlers import register_handlers
+from bot_app.utils.json_storage import JSONFileStorage
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 async def run() -> None:
     settings = get_settings()
     bot = Bot(token=settings.bot_token)
-    storage = MemoryStorage()
+    storage = JSONFileStorage(settings.state_file_path)
     dispatcher = Dispatcher(storage=storage)
 
     register_handlers(dispatcher)

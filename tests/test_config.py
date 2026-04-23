@@ -27,14 +27,22 @@ def test_missing_bot_token_raises(no_dotenv):
 
 
 def test_missing_admin_ids_raises(no_dotenv):
-    env = {"BOT_TOKEN": "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11", "BOT_API_SECRET": "secret"}
+    env = {
+        "BOT_TOKEN": "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
+        "BOT_API_SECRET": "secret",
+        "API_BASE_URL": "http://localhost:8080",
+    }
     with patch.dict(os.environ, env, clear=True):
         with pytest.raises(RuntimeError, match="ADMIN_IDS"):
             get_settings()
 
 
 def test_missing_bot_api_secret_raises(no_dotenv):
-    env = {"BOT_TOKEN": "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11", "ADMIN_IDS": "123"}
+    env = {
+        "BOT_TOKEN": "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
+        "ADMIN_IDS": "123",
+        "API_BASE_URL": "http://localhost:8080",
+    }
     with patch.dict(os.environ, env, clear=True):
         with pytest.raises(RuntimeError, match="BOT_API_SECRET"):
             get_settings()
