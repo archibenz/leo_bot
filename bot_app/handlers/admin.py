@@ -333,6 +333,8 @@ async def on_add_price(message: Message, state: FSMContext) -> None:
 
 @router.callback_query(F.data.startswith("adm:cat:"))
 async def on_add_category(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer("Нет доступа", show_alert=True)
     category = callback.data.split(":", 2)[2]
     await state.update_data(category=category)
     await state.set_state(AdminStates.add_sizes)
@@ -364,6 +366,8 @@ async def on_add_category(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(F.data.startswith("adm:sz:"))
 async def on_toggle_size(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer("Нет доступа", show_alert=True)
     size = callback.data.split(":", 2)[2]
     data = await state.get_data()
     selected = data.get("selected_sizes", [])
@@ -400,6 +404,8 @@ async def on_toggle_size(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(F.data == "adm:sz_done")
 async def on_sizes_done(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer("Нет доступа", show_alert=True)
     data = await state.get_data()
     selected = data.get("selected_sizes", [])
     if not selected:
@@ -484,6 +490,8 @@ async def on_add_photos_text(message: Message, state: FSMContext) -> None:
 
 @router.callback_query(F.data == "adm:photos_done")
 async def on_photos_done(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer("Нет доступа", show_alert=True)
     await state.set_state(AdminStates.add_description)
     await callback.message.edit_text(
         "Шаг 7/7 — <b>Описание</b>\n\n"
@@ -508,6 +516,8 @@ async def on_add_description(message: Message, state: FSMContext) -> None:
 
 @router.callback_query(F.data == "adm:desc_skip")
 async def on_desc_skip(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer("Нет доступа", show_alert=True)
     await state.update_data(description="")
     await _show_confirm_cb(callback, state)
 
@@ -575,6 +585,8 @@ def _build_summary(data: dict) -> str:
 
 @router.callback_query(F.data.startswith("adm:setcol:"))
 async def on_set_collection(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer("Нет доступа", show_alert=True)
     col_id = callback.data.split(":", 2)[2]
     await state.update_data(collection_id=col_id)
     await _do_create_product(callback, state)
@@ -639,6 +651,8 @@ async def _do_create_product(callback: CallbackQuery, state: FSMContext) -> None
 
 @router.callback_query(F.data == "adm:cancel_add")
 async def on_cancel_add(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer("Нет доступа", show_alert=True)
     await state.clear()
     await callback.message.edit_text("🔐 <b>Панель управления</b>", parse_mode="HTML", reply_markup=_admin_menu_kb())
     await callback.answer()
@@ -694,6 +708,8 @@ async def on_col_desc(message: Message, state: FSMContext) -> None:
 
 @router.callback_query(F.data == "adm:col_no_desc")
 async def on_col_no_desc(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer("Нет доступа", show_alert=True)
     await state.update_data(col_description="")
     data = await state.get_data()
     await state.clear()
