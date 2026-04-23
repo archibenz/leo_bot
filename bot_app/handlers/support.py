@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -92,7 +92,7 @@ async def expire_stale_threads(bot, threshold: timedelta = _STALE_THREAD_THRESHO
     Called on startup after init_state_store. Best-effort apology message
     gets sent so the user knows to re-ping support.
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     expired: list[int] = []
     for user_id, thread in list(support_threads.items()):
         last_msg = thread.get("last_user_message")
@@ -178,7 +178,7 @@ def _support_reply_keyboard(user_id: int) -> InlineKeyboardMarkup:
 
 
 def _get_or_create_thread(user_id: int, username: str) -> dict[str, object]:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     thread = support_threads.get(user_id)
     if thread is None:
         thread = {
@@ -370,11 +370,12 @@ async def _cleanup_thread_after(user_id: int):
             _schedule_cleanup(user_id)
             return
 
+        epoch = datetime.min.replace(tzinfo=timezone.utc)
         last_activity = max(
-            thread.get("last_user_message") or datetime.min,
-            thread.get("last_admin_reply") or datetime.min,
+            thread.get("last_user_message") or epoch,
+            thread.get("last_admin_reply") or epoch,
         )
-        if datetime.utcnow() - last_activity >= _CHAT_IDLE_TIMEOUT:
+        if datetime.now(timezone.utc) - last_activity >= _CHAT_IDLE_TIMEOUT:
             support_threads.pop(user_id, None)
             _per_user_locks.pop(user_id, None)
 
@@ -465,7 +466,7 @@ async def handle_admin_support_chat(message: Message):
             )
             return
 
-        thread["last_admin_reply"] = datetime.utcnow()
+        thread["last_admin_reply"] = datetime.now(timezone.utc)
         _schedule_cleanup(user_id)
 
     try:

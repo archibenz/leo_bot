@@ -6,7 +6,7 @@ import logging
 import os
 import tempfile
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -27,9 +27,12 @@ def _decode(obj: Any) -> Any:
     if isinstance(obj, dict):
         if set(obj.keys()) == {"__dt__"}:
             try:
-                return datetime.fromisoformat(obj["__dt__"])
+                dt = datetime.fromisoformat(obj["__dt__"])
             except (TypeError, ValueError):
                 return None
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
         return {k: _decode(v) for k, v in obj.items()}
     if isinstance(obj, list):
         return [_decode(v) for v in obj]

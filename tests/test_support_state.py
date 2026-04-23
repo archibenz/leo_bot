@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -20,7 +20,7 @@ def save_lock() -> asyncio.Lock:
 
 
 def test_encode_datetime_roundtrip() -> None:
-    now = datetime(2026, 4, 23, 22, 30, 15)
+    now = datetime(2026, 4, 23, 22, 30, 15, tzinfo=timezone.utc)
     encoded = _encode({"ts": now})
     assert encoded == {"ts": {"__dt__": now.isoformat()}}
     decoded = _decode(encoded)
@@ -28,10 +28,11 @@ def test_encode_datetime_roundtrip() -> None:
 
 
 def test_encode_nested_structures() -> None:
+    moment = datetime(2026, 4, 23, tzinfo=timezone.utc)
     payload: dict[str, Any] = {
         "threads": {
             42: {
-                "last_user_message": datetime(2026, 4, 23),
+                "last_user_message": moment,
                 "prompt_messages": {100: 5, 200: 7},
             },
         },
@@ -40,7 +41,7 @@ def test_encode_nested_structures() -> None:
     # int keys survive (decode doesn't re-cast; that's load_state's job)
     # but dict values preserve datetime
     inner = roundtrip["threads"]["42"]
-    assert inner["last_user_message"] == datetime(2026, 4, 23)
+    assert inner["last_user_message"] == moment
 
 
 def test_decode_handles_invalid_dt() -> None:
@@ -48,12 +49,20 @@ def test_decode_handles_invalid_dt() -> None:
     assert _decode(encoded) == {"ts": None}
 
 
+def test_decode_normalises_naive_datetime_to_utc() -> None:
+    encoded = {"ts": {"__dt__": "2026-04-23T10:00:00"}}
+    decoded = _decode(encoded)
+    assert decoded["ts"] == datetime(2026, 4, 23, 10, 0, 0, tzinfo=timezone.utc)
+    assert decoded["ts"].tzinfo is timezone.utc
+
+
 async def test_save_and_load_roundtrip(state_file: Path, save_lock: asyncio.Lock) -> None:
+    last_msg = datetime(2026, 4, 23, 10, 0, 0, tzinfo=timezone.utc)
     threads = {
         42: {
             "user_id": 42,
             "username": "alex",
-            "last_user_message": datetime(2026, 4, 23, 10, 0, 0),
+            "last_user_message": last_msg,
             "last_admin_reply": None,
             "prompt_sent": True,
             "user_ack_sent": True,
@@ -70,7 +79,7 @@ async def test_save_and_load_roundtrip(state_file: Path, save_lock: asyncio.Lock
 
     assert set(loaded_threads.keys()) == {42}
     assert loaded_threads[42]["username"] == "alex"
-    assert loaded_threads[42]["last_user_message"] == datetime(2026, 4, 23, 10, 0, 0)
+    assert loaded_threads[42]["last_user_message"] == last_msg
     assert loaded_threads[42]["last_admin_reply"] is None
     assert loaded_chats == {100: {"user_id": 42, "username": "alex"}}
 
@@ -114,7 +123,7 @@ async def test_expire_stale_threads_closes_old_and_keeps_recent(
     support.active_admin_chats.clear()
     support.init_state_store(state_file)
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     old_user_id = 42
     recent_user_id = 43
     admin_id = 100
