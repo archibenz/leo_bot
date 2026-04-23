@@ -28,10 +28,20 @@ from bot_app.services.api_client import (
     log_visit,
 )
 from bot_app.states import RegistrationStates
+from bot_app.utils.validators import is_valid_phone
+
+MAX_NAME_LENGTH = 64
 
 router = Router()
 
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_name(raw: str | None, fallback: str = "User") -> str:
+    if not raw:
+        return fallback
+    cleaned = raw.strip()[:MAX_NAME_LENGTH]
+    return cleaned or fallback
 
 def _user_menu(user_id: int):
     settings = get_settings()
@@ -216,8 +226,15 @@ async def handle_phone_deeplink(message: Message, state: FSMContext):
     settings = get_settings()
     telegram_id = message.from_user.id
     phone = message.contact.phone_number
-    first_name = message.from_user.first_name or "User"
-    last_name = message.from_user.last_name
+    first_name = _sanitize_name(message.from_user.first_name)
+    last_name = _sanitize_name(message.from_user.last_name, fallback="")
+
+    if not is_valid_phone(phone):
+        await message.answer(
+            "Не удалось распознать номер телефона. "
+            "Пожалуйста, используйте кнопку «Поделиться контактом» ещё раз.",
+        )
+        return
 
     data = await state.get_data()
     auth_token = data.get("auth_token")
@@ -275,8 +292,15 @@ async def handle_phone_organic(message: Message, state: FSMContext):
     settings = get_settings()
     telegram_id = message.from_user.id
     phone = message.contact.phone_number
-    first_name = message.from_user.first_name or "User"
-    last_name = message.from_user.last_name
+    first_name = _sanitize_name(message.from_user.first_name)
+    last_name = _sanitize_name(message.from_user.last_name, fallback="")
+
+    if not is_valid_phone(phone):
+        await message.answer(
+            "Не удалось распознать номер телефона. "
+            "Пожалуйста, используйте кнопку «Поделиться контактом» ещё раз.",
+        )
+        return
 
     try:
         await bot_organic_register(

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
 
+import aiohttp
 from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -16,6 +18,28 @@ from bot_app.services import admin_api
 
 logger = logging.getLogger(__name__)
 router = Router()
+
+ADMIN_API_ERRORS = (aiohttp.ClientError, asyncio.TimeoutError, KeyError, ValueError)
+
+
+def _admin_error_message(exc: BaseException) -> str:
+    if isinstance(exc, aiohttp.ClientResponseError):
+        if exc.status in (401, 403):
+            return "Нет доступа к API"
+        if exc.status == 404:
+            return "Не найдено"
+        if exc.status == 409:
+            return "Конфликт — перезагрузите данные"
+        if exc.status >= 500:
+            return "Сервер временно недоступен, попробуйте позже"
+        return f"Ошибка API ({exc.status})"
+    if isinstance(exc, asyncio.TimeoutError):
+        return "Таймаут — сервер медленно отвечает"
+    if isinstance(exc, aiohttp.ClientError):
+        return "Ошибка сети"
+    if isinstance(exc, (KeyError, ValueError)):
+        return "Некорректный ответ сервера"
+    return "Ошибка"
 
 CATEGORIES = {
     "dresses": "Платья",
@@ -85,9 +109,9 @@ async def cb_dashboard(callback: CallbackQuery) -> None:
             [InlineKeyboardButton(text="◀️ Назад", callback_data="adm:menu")],
         ])
         await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
-    except Exception:
+    except ADMIN_API_ERRORS as exc:
         logger.exception("dashboard error")
-        await callback.answer("Ошибка загрузки", show_alert=True)
+        await callback.answer(_admin_error_message(exc), show_alert=True)
 
 
 # ── Products List ──
@@ -141,9 +165,9 @@ async def cb_products(callback: CallbackQuery) -> None:
             "\n".join(lines), parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
         )
-    except Exception:
+    except ADMIN_API_ERRORS as exc:
         logger.exception("products error")
-        await callback.answer("Ошибка загрузки", show_alert=True)
+        await callback.answer(_admin_error_message(exc), show_alert=True)
 
 
 # ── Product Detail ──
@@ -181,9 +205,9 @@ async def cb_product_detail(callback: CallbackQuery) -> None:
             [InlineKeyboardButton(text="◀️ К товарам", callback_data="adm:products")],
         ])
         await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
-    except Exception:
+    except ADMIN_API_ERRORS as exc:
         logger.exception("product detail error")
-        await callback.answer("Ошибка", show_alert=True)
+        await callback.answer(_admin_error_message(exc), show_alert=True)
 
 
 # ── Delete Product ──
@@ -212,9 +236,9 @@ async def cb_delete_exec(callback: CallbackQuery) -> None:
         await admin_api.delete_product(pid)
         await callback.answer("✅ Товар удалён")
         await cb_products(callback)
-    except Exception:
+    except ADMIN_API_ERRORS as exc:
         logger.exception("delete error")
-        await callback.answer("Ошибка удаления", show_alert=True)
+        await callback.answer(_admin_error_message(exc), show_alert=True)
 
 
 # ── Stock Edit ──
@@ -253,9 +277,9 @@ async def on_stock_quantity(message: Message, state: FSMContext) -> None:
             f"✅ <b>{title}</b>\nОстаток: <b>{quantity}</b> шт",
             parse_mode="HTML", reply_markup=main_menu_keyboard(is_admin=True),
         )
-    except Exception:
+    except ADMIN_API_ERRORS as exc:
         logger.exception("stock update error")
-        await message.answer("Ошибка. Попробуйте ещё раз.", reply_markup=main_menu_keyboard(is_admin=True))
+        await message.answer(_admin_error_message(exc), reply_markup=main_menu_keyboard(is_admin=True))
 
 
 # ══════════════════════════════════════════════════════════════
@@ -470,9 +494,9 @@ async def on_add_photo(message: Message, state: FSMContext) -> None:
                 [InlineKeyboardButton(text="❌ Отмена", callback_data="adm:cancel_add")],
             ]),
         )
-    except Exception:
+    except ADMIN_API_ERRORS as exc:
         logger.exception("photo upload error")
-        await message.answer("Ошибка загрузки фото. Попробуйте ещё раз.")
+        await message.answer(f"{_admin_error_message(exc)} (фото не загружено)")
 
 
 @router.message(AdminStates.add_photos)
@@ -530,8 +554,8 @@ async def _show_confirm(message: Message, state: FSMContext) -> None:
     collections = []
     try:
         collections = await admin_api.get_collections()
-    except Exception:
-        pass
+    except ADMIN_API_ERRORS:
+        logger.warning("failed to load collections for confirm screen", exc_info=True)
     rows = []
     if collections:
         for c in collections[:6]:
@@ -550,8 +574,8 @@ async def _show_confirm_cb(callback: CallbackQuery, state: FSMContext) -> None:
     collections = []
     try:
         collections = await admin_api.get_collections()
-    except Exception:
-        pass
+    except ADMIN_API_ERRORS:
+        logger.warning("failed to load collections for confirm screen", exc_info=True)
     rows = []
     if collections:
         for c in collections[:6]:
@@ -638,10 +662,10 @@ async def _do_create_product(callback: CallbackQuery, state: FSMContext) -> None
                 [InlineKeyboardButton(text="◀️ В панель", callback_data="adm:menu")],
             ]),
         )
-    except Exception:
+    except ADMIN_API_ERRORS as exc:
         logger.exception("create product error")
         await callback.message.edit_text(
-            "❌ Ошибка при создании товара. Попробуйте ещё раз.",
+            f"❌ {_admin_error_message(exc)}",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="◀️ В панель", callback_data="adm:menu")],
             ]),
@@ -723,10 +747,10 @@ async def on_col_no_desc(callback: CallbackQuery, state: FSMContext) -> None:
                 [InlineKeyboardButton(text="◀️ В панель", callback_data="adm:menu")],
             ]),
         )
-    except Exception:
+    except ADMIN_API_ERRORS as exc:
         logger.exception("create collection error")
         await callback.message.edit_text(
-            "❌ Ошибка при создании. Попробуйте ещё раз.",
+            f"❌ {_admin_error_message(exc)}",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="◀️ В панель", callback_data="adm:menu")],
             ]),
@@ -745,10 +769,10 @@ async def _create_collection(message: Message, state: FSMContext) -> None:
             parse_mode="HTML",
             reply_markup=main_menu_keyboard(is_admin=True),
         )
-    except Exception:
+    except ADMIN_API_ERRORS as exc:
         logger.exception("create collection error")
         await message.answer(
-            "❌ Ошибка при создании. Попробуйте ещё раз.",
+            f"❌ {_admin_error_message(exc)}",
             reply_markup=main_menu_keyboard(is_admin=True),
         )
 
@@ -789,9 +813,9 @@ async def cb_alerts(callback: CallbackQuery) -> None:
             "\n".join(lines), parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
         )
-    except Exception:
+    except ADMIN_API_ERRORS as exc:
         logger.exception("alerts error")
-        await callback.answer("Ошибка загрузки", show_alert=True)
+        await callback.answer(_admin_error_message(exc), show_alert=True)
 
 
 @router.callback_query(F.data.startswith("adm:ack:"))
@@ -803,9 +827,9 @@ async def cb_acknowledge(callback: CallbackQuery) -> None:
         await admin_api.acknowledge_alert(alert_id)
         await callback.answer("✅ Алерт закрыт")
         await cb_alerts(callback)
-    except Exception:
+    except ADMIN_API_ERRORS as exc:
         logger.exception("acknowledge error")
-        await callback.answer("Ошибка", show_alert=True)
+        await callback.answer(_admin_error_message(exc), show_alert=True)
 
 
 # ── Collections ──
@@ -838,9 +862,9 @@ async def cb_collections(callback: CallbackQuery) -> None:
             [InlineKeyboardButton(text="◀️ Назад", callback_data="adm:menu")],
         ])
         await callback.message.edit_text("\n".join(lines), parse_mode="HTML", reply_markup=kb)
-    except Exception:
+    except ADMIN_API_ERRORS as exc:
         logger.exception("collections error")
-        await callback.answer("Ошибка загрузки", show_alert=True)
+        await callback.answer(_admin_error_message(exc), show_alert=True)
 
 
 # ── Back to menu ──

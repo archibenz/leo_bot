@@ -8,6 +8,8 @@ from bot_app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_TIMEOUT = aiohttp.ClientTimeout(total=10, connect=5)
+
 
 class UserNotFound(Exception):
     pass
@@ -24,7 +26,7 @@ async def bot_login(telegram_id: int, auth_token: str) -> str:
     payload = {"telegramId": telegram_id, "authToken": auth_token}
     headers = {"X-Bot-Secret": settings.bot_api_secret, "Content-Type": "application/json"}
 
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(timeout=DEFAULT_TIMEOUT) as session:
         async with session.post(url, json=payload, headers=headers) as resp:
             if resp.status == 400:
                 raise AuthTokenExpired("auth_token_not_found or invalid")
@@ -44,7 +46,7 @@ async def check_user(telegram_id: int) -> dict:
     payload = {"telegramId": telegram_id}
     headers = {"X-Bot-Secret": settings.bot_api_secret, "Content-Type": "application/json"}
 
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(timeout=DEFAULT_TIMEOUT) as session:
         async with session.post(url, json=payload, headers=headers) as resp:
             resp.raise_for_status()
             return await resp.json()
@@ -63,7 +65,7 @@ async def bot_organic_register(telegram_id: int, phone: str, first_name: str,
     }
     headers = {"X-Bot-Secret": settings.bot_api_secret, "Content-Type": "application/json"}
 
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(timeout=DEFAULT_TIMEOUT) as session:
         async with session.post(url, json=payload, headers=headers) as resp:
             resp.raise_for_status()
 
@@ -85,7 +87,7 @@ async def log_visit(telegram_id: int, username: str | None = None,
     headers = {"X-Bot-Secret": settings.bot_api_secret, "Content-Type": "application/json"}
 
     try:
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=DEFAULT_TIMEOUT) as session:
             async with session.post(url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as resp:
                 if resp.status >= 400:
                     logger.warning("log_visit failed: status=%s telegram_id=%s", resp.status, telegram_id)
@@ -107,7 +109,7 @@ async def bot_register(telegram_id: int, phone: str, first_name: str, auth_token
     }
     headers = {"X-Bot-Secret": settings.bot_api_secret, "Content-Type": "application/json"}
 
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(timeout=DEFAULT_TIMEOUT) as session:
         async with session.post(url, json=payload, headers=headers) as resp:
             if resp.status == 400:
                 raise AuthTokenExpired("auth_token_not_found or invalid")
