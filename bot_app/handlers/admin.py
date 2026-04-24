@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 
 import aiohttp
 from aiogram import Bot, F, Router
@@ -310,6 +311,11 @@ async def on_add_title(message: Message, state: FSMContext) -> None:
         await message.answer("Название слишком короткое. Введите ещё раз:")
         return
     product_id = re.sub(r"[^a-z0-9]+", "-", title.lower().strip())[:60].strip("-")
+    # Cyrillic / emoji-only titles strip to "" — fall back to a unique id
+    # tied to creation time so it passes admin_api._validate_id and doesn't
+    # collide with the legacy "product" fallback at line ~635.
+    if len(product_id) < 3:
+        product_id = f"product-{int(time.time())}"
     await state.update_data(title=title, product_id=product_id)
     await state.set_state(AdminStates.add_price)
     await message.answer(
