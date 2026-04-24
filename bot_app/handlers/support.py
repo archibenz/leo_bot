@@ -60,6 +60,10 @@ def _get_user_lock(user_id: int) -> asyncio.Lock:
 
 
 def _admin_ids() -> tuple[int, ...]:
+    # get_settings() is lru_cached, so this still reads the snapshot taken at
+    # first call. The important property here is that _admin_ids() is invoked
+    # per message (not at import time), so tests / restarts that clear the
+    # cache see updated IDs on the next call.
     settings = get_settings()
     return settings.admin_ids
 
@@ -422,9 +426,12 @@ async def handle_support_reply(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.message(F.from_user.id.in_(_admin_ids()))
+@router.message()
 async def handle_admin_support_chat(message: Message):
     admin_id = message.from_user.id
+    # Re-evaluate admin set per message so newly added admins work without restart
+    if admin_id not in _admin_ids():
+        return
     session = active_admin_chats.get(admin_id)
 
     if session and message.text:
