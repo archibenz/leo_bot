@@ -28,6 +28,7 @@ def consent_keyboard() -> ReplyKeyboardMarkup:
 def main_menu_keyboard(is_admin: bool = False) -> ReplyKeyboardMarkup:
     buttons = [
         "Магазин на WB 💜",
+        "Магазин на Ozon 🔵",
         "Наш VK 🧡",
         "Наш Telegram 📢",
         "Наш Instagram ✅",

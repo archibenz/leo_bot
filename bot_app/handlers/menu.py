@@ -41,6 +41,16 @@ async def send_wb_link(message: Message):
     await _maybe_remind_registration(message)
 
 
+@router.message(F.text == "Магазин на Ozon 🔵")
+async def send_ozon_link(message: Message):
+    await message.answer(
+        "Мы есть и на Ozon 🔵\n\n"
+        "Наши товары на Ozon — по ссылке:\n"
+        f"{get_settings().ozon_url}"
+    )
+    await _maybe_remind_registration(message)
+
+
 @router.message(F.text == "Подарок 🎁")
 async def send_gift_link(message: Message):
     await message.answer(

@@ -20,6 +20,7 @@ class Settings:
     site_url: str
     pages_url: str
     wb_seller_id: str
+    ozon_url: str
     state_file_path: str
     support_state_path: str
 
@@ -51,6 +52,14 @@ def get_settings() -> Settings:
     site_url = os.getenv("SITE_URL", "https://reinasleo.com")
     pages_url = os.getenv("PAGES_URL", "https://reinasleo.com/pages")
     wb_seller_id = os.getenv("WB_SELLER_ID", "609562")
+    # Ozon only counts a visit as ours when utm_campaign opens with the seller's
+    # own prefix — without it the sale still happens but never appears under
+    # Аналитика → Внешний трафик, so nobody can tell the bot brought it.
+    ozon_url = os.getenv(
+        "OZON_URL",
+        "https://www.ozon.ru/seller/reinasleo-102107882/"
+        "?utm_source=telegram&utm_medium=bot&utm_campaign=vendor_org_806467_telegram",
+    )
     state_file_path = os.getenv("STATE_FILE_PATH", "state.json")
     support_state_path = os.getenv("SUPPORT_STATE_PATH", "support_state.json")
 
@@ -82,6 +91,7 @@ def get_settings() -> Settings:
         site_url=site_url,
         pages_url=pages_url,
         wb_seller_id=wb_seller_id,
+        ozon_url=ozon_url,
         state_file_path=state_file_path,
         support_state_path=support_state_path,
     )
