@@ -1,9 +1,10 @@
 from aiogram import Dispatcher
 
-from bot_app.handlers import admin, menu, registration, support
+from bot_app.handlers import admin, menu, registration, support, telegram_link
 
 
 def register_handlers(dispatcher: Dispatcher) -> None:
+    dispatcher.include_router(telegram_link.router)
     dispatcher.include_router(admin.router)
     dispatcher.include_router(registration.router)
     dispatcher.include_router(menu.router)
