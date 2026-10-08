@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 import aiohttp
 
@@ -17,6 +18,57 @@ class UserNotFound(Exception):
 
 class AuthTokenExpired(Exception):
     pass
+
+
+class TelegramLinkConflict(Exception):
+    pass
+
+
+class TelegramLinkInvalid(Exception):
+    pass
+
+
+class TelegramLinkUnavailable(Exception):
+    pass
+
+
+async def confirm_telegram_link(
+    challenge_token: str,
+    telegram_id: int,
+    telegram_username: str | None = None,
+) -> None:
+    if (
+        not isinstance(challenge_token, str)
+        or re.fullmatch(r"[A-Za-z0-9_-]{43}", challenge_token) is None
+        or type(telegram_id) is not int
+        or not 0 < telegram_id < 2**63
+        or telegram_username is not None and (
+            not isinstance(telegram_username, str)
+            or re.fullmatch(r"[A-Za-z0-9_]{1,32}", telegram_username) is None
+        )
+    ):
+        raise TelegramLinkInvalid()
+    settings = get_settings()
+    url = f"{settings.api_base_url.rstrip('/')}/api/bot/telegram-link/confirm"
+    payload = {
+        "challengeToken": challenge_token,
+        "telegramId": telegram_id,
+        "telegramUsername": telegram_username,
+    }
+    headers = {"X-Bot-Secret": settings.bot_api_secret, "Content-Type": "application/json"}
+    async with aiohttp.ClientSession(timeout=DEFAULT_TIMEOUT) as session, session.post(
+        url, json=payload, headers=headers, allow_redirects=False
+    ) as response:
+        if response.status == 204:
+            return
+        if response.status == 401:
+            raise TelegramLinkInvalid()
+        if response.status == 409:
+            raise TelegramLinkConflict()
+        if response.status == 410:
+            raise AuthTokenExpired()
+        response.raise_for_status()
+        raise TelegramLinkUnavailable()
 
 
 async def bot_login(telegram_id: int, auth_token: str) -> str:
